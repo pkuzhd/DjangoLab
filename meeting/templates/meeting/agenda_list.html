@@ -11,10 +11,38 @@
     <li class="nav-item"><a class="nav-link active" href="#aaa" data-toggle="tab">日程表</a></li>
     <li class="nav-item"><a class="nav-link" href="#bbb" data-toggle="tab">日程详细列表</a></li>
     <li class="nav-item"><a class="nav-link" href="{% url 'meeting:agenda_add' room_id %}">增加新日程</a>
+    {% if perm %}
+      <li class="nav-item"><a class="nav-link" href="#ccc" data-toggle="tab">确认日程</a>
+    {% endif %}
 </ul>
 <div class="w-100"></div>
 <div class="tab-content" id="tabs">
-  <div class="tab-pane" id="bbb">
+    {% if perm %}
+    <div class="tab-pane" id="ccc">
+      <div class="container p-0" style="position: relative;min-width:610px;min-height=500px">
+          <table class="table table-bordered table-hover table-sm">
+              <tr><th>事项</th><th>日期</th><th>操作</th></tr>
+                {% for agenda in agendas_not_confirm %}
+                  <tr><td> {{ agenda.title }} </td><td>
+                    {% if agenda.repeat == 0 %} {{ agenda.date }} {% else %}
+                      {% if agenda.week == 0 %}周一{% endif %}
+                      {% if agenda.week == 1 %}周二{% endif %}
+                      {% if agenda.week == 2 %}周三{% endif %}
+                      {% if agenda.week == 3 %}周四{% endif %}
+                      {% if agenda.week == 4 %}周五{% endif %}
+                      {% if agenda.week == 5 %}周六{% endif %}
+                      {% if agenda.week == 6 %}周日{% endif %}
+                      （截止日期 {{ agenda.date }}）
+                    {% endif %}
+                      </td>
+                      <td><a href="{% url 'meeting:agenda_view' agenda.id %}">查看</a></td>
+                  </tr>
+                {% endfor %}
+          </table>
+      </div>
+      </div>
+    {% endif %}
+    <div class="tab-pane" id="bbb">
   <div class="container p-0" style="position: relative;min-width:610px;min-height=500px">
       <table class="table table-bordered table-hover table-sm">
           <tr><th>事项</th><th>日期</th><th>操作</th></tr>

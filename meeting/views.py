@@ -6,14 +6,15 @@ from django.urls import reverse
 from home.models import Teacher
 import datetime
 
-def getTea(request):
+def getTeaPerm(request):
     try:
-        tea = Teacher.objects.get(uid = request.session['schoolid'])
+        tea = Teacher.objects.get(uid = request.session['uid'])
+        return tea.perm
     except Teacher.DoesNotExist:
         return -1
     except KeyError:
         return -2
-    return 1
+    return 0
 
 def index(request):
     rooms = MeetingRoom.objects.all()
@@ -26,19 +27,25 @@ def index(request):
 def agenda_add(request, room_id):
     room = get_object_or_404(MeetingRoom, pk=room_id)
     errors = []
-    if (getTea(request) < 0):
-        errors = ["你没有增加日程的权限"]
+    # if getTeaPerm(request) != 1:
+    #     errors = ["你没有增加日程的权限"]
     if request.method == 'POST':
+        print("POST")
         form = AgendaForm(request.POST)
         if form.is_valid():
+            tea = Teacher.objects.get(uid = request.session['uid'])
+
             agenda = RoomAgenda(room=room)
             agenda.title = form.cleaned_data['note']
             agenda.start_time = form.cleaned_data['start']
             agenda.end_time = form.cleaned_data['end']
-            agenda.userid = request.session['schoolid']
+            agenda.userid = tea.uid
             agenda.week = form.cleaned_data['week']
             agenda.date = form.cleaned_data['date']
-            agenda.username = request.session['realname']
+            agenda.username = tea.name
+
+            agenda.confirm = tea.perm 
+
             if form.cleaned_data['repeatable'] == '2':
                 agenda.repeat = 1
             else:
@@ -49,6 +56,7 @@ def agenda_add(request, room_id):
             if agenda.repeat == 1:
                 if (agenda.date - datetime.date.today()).days < 7:
                     errors = errors + ["每周重复日程请设定合适的截止日期"]
+            print("errors", errors)
             if len(errors) == 0:
                 agenda.save()
                 return HttpResponseRedirect(reverse('meeting:agenda_list', args=(room.id,)))
@@ -60,7 +68,9 @@ def agenda_list(request, room_id):
     room = get_object_or_404(MeetingRoom, pk=room_id)
     td = datetime.date.today()
     td = td - datetime.timedelta(days=td.weekday()) # whole week
-    agendas = RoomAgenda.objects.filter(room=room,date__gte=td)
+    perm = Teacher.objects.get(uid=request.session['uid']).perm
+    agendas = RoomAgenda.objects.filter(room=room,date__gte=td, confirm=1)
+    agendas_not_confirm = RoomAgenda.objects.filter(room=room,date__gte=td, confirm=0) if perm else []
     for a in agendas:
         a.view = ""
         if (a.repeat == 0) and (a.date > td + datetime.timedelta(days=6)):
@@ -70,7 +80,7 @@ def agenda_list(request, room_id):
         a.view = a.view + "top: %dpx;" % k
         k = (a.end_time.hour - a.start_time.hour) * 40 + (a.end_time.minute - a.start_time.minute) / 6 * 4
         a.view = a.view + "height: %dpx;" % k
-    return render(request, 'meeting/agenda_list.html', {'agendas': agendas, 'room_id': room_id})
+    return render(request, 'meeting/agenda_list.html', {'agendas': agendas, 'room_id': room_id, "perm":perm, 'agendas_not_confirm': agendas_not_confirm})
 
 def agenda_view(request, agenda_id):
     agenda = get_object_or_404(RoomAgenda, pk=agenda_id)
@@ -79,6 +89,6 @@ def agenda_view(request, agenda_id):
 def agenda_del(request, agenda_id):
     agenda = get_object_or_404(RoomAgenda, pk=agenda_id)
     room = agenda.room
-    if (agenda.userid == request.session['schoolid']) or (request.user.is_superuser):
+    if (agenda.userid == request.session['uid']) or (request.user.is_superuser):
         agenda.delete()
     return HttpResponseRedirect(reverse('meeting:agenda_list', args=(room.id,)))
